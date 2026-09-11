@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Registro de Persona</title>
+</head>
+<body>
+    <h2>RF1: Registro de Persona a Consultar</h2>
+    <form id="formPersona">
+        <p><label>Nombre:</label><br><input type="text" id="nombre" required></p>
+        <p><label>Apellido:</label><br><input type="text" id="apellido"></p>
+        <p><label>País:</label><br><input type="text" id="pais" value="Colombia" required></p>
+        <p><label>Ciudad:</label><br><input type="text" id="ciudad"></p>
+        <p><label>Profesión / Cargo:</label><br><input type="text" id="profesion"></p>
+        <p><label>Empresa:</label><br><input type="text" id="empresa"></p>
+        <p><label>Alias:</label><br><input type="text" id="alias"></p>
+        <p><label>Palabra clave:</label><br><textarea id="palabra_clave" rows="4" cols="40"></textarea></p>
+        <p><button type="submit">Guardar Persona</button></p>
+    </form>
+
+    <script>
+        document.getElementById('formPersona').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const datos = {
+                nombre: document.getElementById('nombre').value,
+                apellido: document.getElementById('apellido').value,
+                pais: document.getElementById('pais').value,
+                ciudad: document.getElementById('ciudad').value,
+                profesion: document.getElementById('profesion').value,
+                empresa: document.getElementById('empresa').value,
+                alias: document.getElementById('alias').value,
+                palabra_clave: document.getElementById('palabra_clave').value
+            };
+            try {
+                const res = await fetch('/guardar.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datos)
+                });
+                const resultado = await res.json();
+                alert(resultado.message || resultado.error);
+                if (res.ok) document.getElementById('formPersona').reset();
+            } catch (err) {
+                alert("Error al conectar con la API de personas.");
+            }
+        });
+    </script>
+</body>
+</html>

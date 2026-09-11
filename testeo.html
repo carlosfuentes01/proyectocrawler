@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Modulo de Testeo (Java asincrono)</title>
+</head>
+<body>
+    <h2>Testeo: cliente -> PHP -> Java -> MySQL (asincrono)</h2>
+    <p>
+        <label>Numero 1:</label>
+        <input type="number" id="num1">
+        <label>Numero 2:</label>
+        <input type="number" id="num2">
+        <button id="btnCalcular">Calcular</button>
+        <button id="btnActualizar">Actualizar tabla</button>
+    </p>
+    <p id="estado"></p>
+
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Numero A</th>
+                <th>Numero B</th>
+                <th>Resultado</th>
+                <th>Estado</th>
+            </tr>
+        </thead>
+        <tbody id="cuerpoTabla"></tbody>
+    </table>
+
+    <script>
+        let temporizador = null;
+
+        document.addEventListener("DOMContentLoaded", () => {
+            cargarTabla();
+            document.getElementById('btnCalcular').addEventListener('click', enviarCalculo);
+            document.getElementById('btnActualizar').addEventListener('click', cargarTabla);
+        });
+
+        async function enviarCalculo() {
+            const num1 = document.getElementById('num1').value;
+            const num2 = document.getElementById('num2').value;
+
+            if (!num1 || !num2) return alert("Ingresa ambos numeros");
+
+            document.getElementById('estado').textContent = "Enviando...";
+
+            try {
+                const res = await fetch('calcular.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ num1: parseFloat(num1), num2: parseFloat(num2) })
+                });
+                const data = await res.json();
+
+                if (data.id) {
+                    document.getElementById('estado').textContent =
+                        `ID ${data.id} creado (PENDIENTE). Esperando a Java...`;
+                    cargarTabla();
+
+                    if (temporizador) clearInterval(temporizador);
+                    temporizador = setInterval(() => verificarResultado(data.id), 1000);
+                } else {
+                    document.getElementById('estado').textContent = data.error || "Error desconocido";
+                }
+            } catch (e) {
+                document.getElementById('estado').textContent = "Error al conectar con PHP";
+            }
+        }
+
+        async function verificarResultado(id) {
+            try {
+                const res = await fetch(`obtener_resultado.php?id=${id}`);
+                const data = await res.json();
+                cargarTabla();
+
+                if (data.estado === 'COMPLETADO' || data.estado === 'ERROR') {
+                    clearInterval(temporizador);
+                    document.getElementById('estado').textContent =
+                        data.estado === 'COMPLETADO'
+                            ? `Listo! Resultado ID ${id}: ${data.resultado}`
+                            : `Error procesando ID ${id}`;
+                }
+            } catch (e) {
+                console.error("Esperando respuesta...");
+            }
+        }
+
+        async function cargarTabla() {
+            try {
+                const res = await fetch('listar_resultados.php');
+                const datos = await res.json();
+                const tbody = document.getElementById('cuerpoTabla');
+                tbody.textContent = "";
+
+                if (!Array.isArray(datos) || datos.length === 0) return;
+
+                datos.forEach(f => {
+                    const tr = document.createElement('tr');
+                    const valores = [
+                        f.id,
+                        f.numeroa,
+                        f.numerob,
+                        f.resultado !== null ? f.resultado : 'PENDIENTE',
+                        f.estado
+                    ];
+                    valores.forEach(texto => {
+                        const td = document.createElement('td');
+                        td.textContent = texto;
+                        tr.appendChild(td);
+                    });
+                    tbody.appendChild(tr);
+                });
+            } catch (e) {
+                console.error("Error al cargar registros:", e);
+            }
+        }
+    </script>
+</body>
+</html>
