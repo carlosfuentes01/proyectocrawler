@@ -1,0 +1,65 @@
+services:
+  # 1. Servidor Web (PHP + Apache)
+  mi_servidor_web:
+    image: php:8.2-apache
+    container_name: contenedor_apache_php_taller1
+    ports:
+      - "8080:80"
+    volumes:
+      - ./php_app:/var/www/html
+    command: sh -c "docker-php-ext-install pdo pdo_mysql && apache2-foreground"
+    depends_on:
+      - base_datos
+      - servicio_java
+
+  # 2. Microservicio Java
+  servicio_java:
+    build:
+      context: ./java_app
+    container_name: contenedor_java_taller1
+    ports:
+      - "8083:8083"
+    environment:
+      DB_HOST: base_datos
+      DB_PORT: 3306
+      DB_NAME: taller1_db
+      DB_USER: root
+      DB_PASSWORD: root_password
+      CRAWLER_WORKERS: 4
+      AGENTE_IA_URL: http://servicio_ia:11434
+    depends_on:
+      base_datos:
+        condition: service_healthy
+
+  # 3. Base de Datos (MySQL)
+  base_datos:
+    image: mysql:8.0
+    container_name: contenedor_mysql_taller1
+    environment:
+      MYSQL_ROOT_PASSWORD: root_password
+      MYSQL_DATABASE: taller1_db
+    ports:
+      - "3307:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+      - ./sql_scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-proot_password"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  # 4. phpMyAdmin
+  phpmyadmin:
+    image: phpmyadmin:latest
+    container_name: contenedor_phpmyadmin_taller1
+    ports:
+      - "8082:80"
+    environment:
+      PMA_HOST: base_datos
+      MYSQL_ROOT_PASSWORD: root_password
+    depends_on:
+      - base_datos
+
+volumes:
+  db_data:
