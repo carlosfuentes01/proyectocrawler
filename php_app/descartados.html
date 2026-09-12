@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Documentos Descartados</title>
+</head>
+<body>
+    <h2>Documentos descartados (con motivo)</h2>
+
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Titulo</th>
+                <th>URL</th>
+                <th>Pais</th>
+                <th>Fecha consulta</th>
+                <th>Motivo del descarte</th>
+            </tr>
+        </thead>
+        <tbody id="cuerpoTablaDescartados"></tbody>
+    </table>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", cargarDocumentosDescartados);
+
+        async function cargarDocumentosDescartados() {
+            try {
+                const respuesta = await fetch('listar_documentos_descartados.php');
+                const documentosDescartados = await respuesta.json();
+                const cuerpoTabla = document.getElementById('cuerpoTablaDescartados');
+                cuerpoTabla.textContent = "";
+
+                if (!Array.isArray(documentosDescartados)) return;
+
+                documentosDescartados.forEach(documento => {
+                    const filaTabla = document.createElement('tr');
+                    const valoresFila = [
+                        documento.id_documento,
+                        documento.titulo,
+                        documento.url,
+                        documento.pais,
+                        documento.fecha_consulta,
+                        documento.motivo_descarte
+                    ];
+                    valoresFila.forEach(valor => {
+                        const celda = document.createElement('td');
+                        celda.textContent = valor;
+                        filaTabla.appendChild(celda);
+                    });
+                    cuerpoTabla.appendChild(filaTabla);
+                });
+            } catch (error) {
+                console.error("Error al cargar documentos descartados:", error);
+            }
+        }
+    </script>
+</body>
+</html>

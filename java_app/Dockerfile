@@ -2,7 +2,6 @@ FROM eclipse-temurin:21-jdk
 
 WORKDIR /app
 
-# Driver JDBC de MySQL, se necesitara cuando conectemos por JDBC (paso 2 en adelante).
 RUN apt-get update && apt-get install -y --no-install-recommends curl \
     && mkdir -p /app/libs \
     && curl -fL -o /app/libs/mysql-connector-j.jar \

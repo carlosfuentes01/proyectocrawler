@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Documentos del Crawler</title>
+</head>
+<body>
+    <h2>Documentos encontrados (no descartados)</h2>
+
+    <h3>Iniciar un rastreo</h3>
+    <p>
+        <label>ID Fuente:</label> <input type="number" id="campoIdFuente">
+        <label>ID Persona:</label> <input type="number" id="campoIdPersona">
+        <label>URL semilla:</label> <input type="text" id="campoUrlSemilla" size="40">
+        <label>Numero de hilos:</label> <input type="number" id="campoNumeroDeHilos" value="2">
+        <button id="botonIniciarCrawler">Iniciar Crawler</button>
+    </p>
+    <p id="mensajeEstadoCrawler"></p>
+
+    <h3>Documentos</h3>
+    <table border="1" cellpadding="5" cellspacing="0">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Titulo</th>
+                <th>URL</th>
+                <th>Pais</th>
+                <th>Fecha publicacion</th>
+                <th>Fecha consulta</th>
+                <th>Estado URL</th>
+                <th>Verificacion identidad</th>
+                <th>Clasificacion contextual</th>
+                <th>Fragmento contenido</th>
+            </tr>
+        </thead>
+        <tbody id="cuerpoTablaDocumentos"></tbody>
+    </table>
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            cargarDocumentos();
+            document.getElementById('botonIniciarCrawler').addEventListener('click', iniciarCrawler);
+        });
+
+        async function iniciarCrawler() {
+            const idFuente = document.getElementById('campoIdFuente').value;
+            const idPersona = document.getElementById('campoIdPersona').value;
+            const urlSemilla = document.getElementById('campoUrlSemilla').value;
+            const numeroDeHilos = document.getElementById('campoNumeroDeHilos').value;
+
+            document.getElementById('mensajeEstadoCrawler').textContent = "Iniciando crawler...";
+
+            try {
+                const respuesta = await fetch('iniciar_crawler.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        idFuente: parseInt(idFuente, 10),
+                        idPersona: parseInt(idPersona, 10),
+                        urlSemilla: urlSemilla,
+                        numeroHilos: parseInt(numeroDeHilos, 10)
+                    })
+                });
+                const datos = await respuesta.json();
+                document.getElementById('mensajeEstadoCrawler').textContent =
+                    datos.status || datos.error || "Sin respuesta";
+            } catch (error) {
+                document.getElementById('mensajeEstadoCrawler').textContent = "Error al conectar con PHP";
+            }
+        }
+
+        async function cargarDocumentos() {
+            try {
+                const respuesta = await fetch('listar_documentos_relacionados.php');
+                const documentos = await respuesta.json();
+                const cuerpoTabla = document.getElementById('cuerpoTablaDocumentos');
+                cuerpoTabla.textContent = "";
+
+                if (!Array.isArray(documentos)) return;
+
+                documentos.forEach(documento => {
+                    const filaTabla = document.createElement('tr');
+                    const valoresFila = [
+                        documento.id_documento,
+                        documento.titulo,
+                        documento.url,
+                        documento.pais,
+                        documento.fecha_publicacion,
+                        documento.fecha_consulta,
+                        documento.estado_url,
+                        documento.verificacion_identidad,
+                        documento.clasificacion_contextual,
+                        documento.fragmento_contenido
+                    ];
+                    valoresFila.forEach(valor => {
+                        const celda = document.createElement('td');
+                        celda.textContent = valor;
+                        filaTabla.appendChild(celda);
+                    });
+                    cuerpoTabla.appendChild(filaTabla);
+                });
+            } catch (error) {
+                console.error("Error al cargar documentos:", error);
+            }
+        }
+    </script>
+</body>
+</html>

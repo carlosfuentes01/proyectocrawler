@@ -1,72 +1,91 @@
-CREATE DATABASE IF NOT EXISTS taller1_db;
-USE taller1_db;
+-- phpMyAdmin SQL Dump
+-- version 5.2.3
+-- https://www.phpmyadmin.net/
+--
+-- Servidor: base_datos
+-- Tiempo de generación: 12-09-2026 a las 04:56:39
+-- Versión del servidor: 8.0.46
+-- Versión de PHP: 8.3.33
 
---  persona a consultar
-CREATE TABLE IF NOT EXISTS persona (
-    id_persona INT AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(45) NOT NULL,
-    apellido VARCHAR(45),
-    pais VARCHAR(45) NOT NULL,
-    ciudad VARCHAR(45),
-    profesion VARCHAR(45),
-    empresa VARCHAR(45),
-    alias VARCHAR(45),
-    palabra_clave TEXT
-);
+SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
+START TRANSACTION;
+SET time_zone = "+00:00";
 
- --fuentes públicas por país
-CREATE TABLE IF NOT EXISTS fuente (
-    id_fuente INT AUTO_INCREMENT PRIMARY KEY,
-    nombre VARCHAR(100) NOT NULL,
-    url_inicial VARCHAR(255) NOT NULL,
-    estado ENUM('ACTIVA','INACTIVA') NOT NULL DEFAULT 'ACTIVA',
-    pais VARCHAR(45) NOT NULL,
-    tipo VARCHAR(45)
-);
 
--- documentos encontrados por el crawler
-CREATE TABLE IF NOT EXISTS documento (
-    id_documento INT AUTO_INCREMENT PRIMARY KEY,
-    id_fuente INT NOT NULL,
-    id_persona INT NOT NULL,
-    relacion ENUM('RELACIONADO','NO_RELACIONADO') NOT NULL DEFAULT 'NO_RELACIONADO',
-    titulo VARCHAR(255),
-    url VARCHAR(255) NOT NULL,
-    pais VARCHAR(45),
-    fecha_publicacion DATE NULL,
-    fecha_consulta DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    contenido_textual LONGTEXT,
-    estado_url ENUM('PENDIENTE','EN_PROCESAMIENTO','PROCESADA','DESCARTADA','ERROR') NOT NULL DEFAULT 'PENDIENTE',
-    verificacion_identidad ENUM('MISMA_PERSONA','POSIBLE_COINCIDENCIA','PERSONA_DIFERENTE','NO_DETERMINADO') DEFAULT 'NO_DETERMINADO',
-    clasificacion_contextual ENUM('POSITIVO','NEUTRO','NEGATIVO','NO_DETERMINADO') DEFAULT 'NO_DETERMINADO',
-    motivo_descarte VARCHAR(255) NULL,
-    CONSTRAINT fk_documento_fuente FOREIGN KEY (id_fuente) REFERENCES fuente(id_fuente),
-    CONSTRAINT fk_documento_persona FOREIGN KEY (id_persona) REFERENCES persona(id_persona),
-    UNIQUE KEY uk_documento_url_persona (url, id_persona)
-);
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8mb4 */;
 
--- Métricas de concurrencia (1 vs. N workers)
-CREATE TABLE IF NOT EXISTS metrica_concurrencia (
-    id_metrica INT AUTO_INCREMENT PRIMARY KEY,
-    num_workers INT NOT NULL,
-    urls_procesadas INT NOT NULL,
-    duracion_ms BIGINT NOT NULL,
-    fecha DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-);
+--
+-- Base de datos: `taller1_db`
+--
 
--- (testeo.html)
-CREATE TABLE IF NOT EXISTS resultado (
-    id INT AUTO_INCREMENT PRIMARY KEY,
-    resultado INT NOT NULL
-);
+-- --------------------------------------------------------
 
--- Fuente semilla de ejemplo para Colombia (RF2)
---INSERT INTO fuente (nombre, url_inicial, estado, pais, tipo)
---VALUES ('El Tiempo', 'https://www.eltiempo.com', 'ACTIVA', 'Colombia', 'NOTICIAS');
-CREATE TABLE `test` (
-  `id` int NOT NULL,
-  `resultado` int DEFAULT NULL,
-  `numeroa` float DEFAULT NULL,
-  `numerob` float DEFAULT NULL,
-  `estado` text
+--
+-- Estructura de tabla para la tabla `documento`
+--
+
+CREATE TABLE `documento` (
+  `id_documento` int NOT NULL,
+  `id_fuente` int NOT NULL,
+  `id_persona` int NOT NULL,
+  `relacion` enum('RELACIONADO','NO_RELACIONADO') NOT NULL DEFAULT 'NO_RELACIONADO',
+  `titulo` varchar(255) DEFAULT NULL,
+  `url` varchar(255) NOT NULL,
+  `pais` varchar(45) DEFAULT NULL,
+  `fecha_publicacion` date DEFAULT NULL,
+  `fecha_consulta` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `contenido_textual` longtext,
+  `estado_url` enum('PENDIENTE','EN_PROCESAMIENTO','PROCESADA','DESCARTADA','ERROR') NOT NULL DEFAULT 'PENDIENTE',
+  `verificacion_identidad` enum('MISMA_PERSONA','POSIBLE_COINCIDENCIA','PERSONA_DIFERENTE','NO_DETERMINADO') DEFAULT 'NO_DETERMINADO',
+  `clasificacion_contextual` enum('POSITIVO','NEUTRO','NEGATIVO','NO_DETERMINADO') DEFAULT 'NO_DETERMINADO',
+  `motivo_descarte` varchar(255) DEFAULT NULL,
+  `nombre_hilo` varchar(60) DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_ai_ci;
+
+--
+-- Volcado de datos para la tabla `documento`
+--
+
+INSERT INTO `documento` (`id_documento`, `id_fuente`, `id_persona`, `relacion`, `titulo`, `url`, `pais`, `fecha_publicacion`, `fecha_consulta`, `contenido_textual`, `estado_url`, `verificacion_identidad`, `clasificacion_contextual`, `motivo_descarte`, `nombre_hilo`) VALUES
+(1, 1, 3, 'NO_RELACIONADO', NULL, 'https://www.facebook.com/profile.php?id=100077063270376', NULL, NULL, '2026-09-12 02:17:53', NULL, 'DESCARTADA', 'NO_DETERMINADO', 'NO_DETERMINADO', 'El contenido no menciona explicitamente a Colombia.', NULL);
+
+--
+-- Índices para tablas volcadas
+--
+
+--
+-- Indices de la tabla `documento`
+--
+ALTER TABLE `documento`
+  ADD PRIMARY KEY (`id_documento`),
+  ADD KEY `fk_documento_fuente` (`id_fuente`),
+  ADD KEY `fk_documento_persona` (`id_persona`);
+
+--
+-- AUTO_INCREMENT de las tablas volcadas
+--
+
+--
+-- AUTO_INCREMENT de la tabla `documento`
+--
+ALTER TABLE `documento`
+  MODIFY `id_documento` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15670;
+
+--
+-- Restricciones para tablas volcadas
+--
+
+--
+-- Filtros para la tabla `documento`
+--
+ALTER TABLE `documento`
+  ADD CONSTRAINT `fk_documento_fuente` FOREIGN KEY (`id_fuente`) REFERENCES `fuente` (`id_fuente`),
+  ADD CONSTRAINT `fk_documento_persona` FOREIGN KEY (`id_persona`) REFERENCES `persona` (`id_persona`);
+COMMIT;
+
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
