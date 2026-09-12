@@ -3,56 +3,152 @@
 <head>
     <meta charset="UTF-8">
     <title>Documentos Descartados</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        .tabla-wrapper {
+            width: 100%; overflow-x: auto; margin-bottom: 20px;
+            border: 1px solid #ddd; border-radius: 4px;
+        }
+        .tabla-wrapper table { width: 100%; border-collapse: collapse; font-size: 13px; table-layout: fixed; }
+        .tabla-wrapper th, .tabla-wrapper td {
+            border: 1px solid #ddd; padding: 5px 8px; text-align: left; vertical-align: top;
+        }
+        .tabla-wrapper td { max-width: 250px; overflow-x: auto; white-space: nowrap; }
+        .tabla-wrapper td.col-url { max-width: 400px; }
+        .tabla-wrapper th { background-color: #f2f2f2; font-weight: bold; position: sticky; top: 0; }
+        .tabla-wrapper td::-webkit-scrollbar { height: 6px; }
+        .tabla-wrapper td::-webkit-scrollbar-thumb { background-color: #bbb; border-radius: 3px; }
+        .tabla-wrapper td::-webkit-scrollbar-track { background-color: #f1f1f1; }
+        .fila-mensaje td { text-align: center; font-style: italic; color: #666; overflow-x: visible; }
+    </style>
 </head>
 <body>
-    <h2>Documentos descartados (con motivo)</h2>
+    <p><a id="linkVolverDocumentos" href="documentos.html">&larr; Volver a documentos</a></p>
 
-    <table border="1" cellpadding="5" cellspacing="0">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Titulo</th>
-                <th>URL</th>
-                <th>Pais</th>
-                <th>Fecha consulta</th>
-                <th>Motivo del descarte</th>
-            </tr>
-        </thead>
-        <tbody id="cuerpoTablaDescartados"></tbody>
-    </table>
+    <h2>Documentos descartados (con motivo)</h2>
+    <p id="infoFiltros">Cargando filtros...</p>
+
+    <div class="tabla-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Hilo</th>
+                    <th>Persona</th>
+                    <th>Fuente</th>
+                    <th>Titulo</th>
+                    <th>URL</th>
+                    <th>Pais</th>
+                    <th>Fecha consulta</th>
+                    <th>Motivo del descarte</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpoTablaDescartados"></tbody>
+        </table>
+    </div>
 
     <script>
-        document.addEventListener("DOMContentLoaded", cargarDocumentosDescartados);
+        const pUrl = new URLSearchParams(window.location.search);
+        const idPersonaFijo = pUrl.get('idPersona');
+        const idFuenteFijo  = pUrl.get('idFuente');
 
-        async function cargarDocumentosDescartados() {
-            try {
-                const respuesta = await fetch('listar_documentos_descartados.php');
-                const documentosDescartados = await respuesta.json();
-                const cuerpoTabla = document.getElementById('cuerpoTablaDescartados');
-                cuerpoTabla.textContent = "";
+        document.addEventListener("DOMContentLoaded", () => {
+            actualizarLinkVolver();
+            mostrarInfoFiltros();
+            cargarDescartados();
+        });
 
-                if (!Array.isArray(documentosDescartados)) return;
+        function actualizarLinkVolver() {
+            const p = [];
+            if (idPersonaFijo) p.push("idPersona=" + encodeURIComponent(idPersonaFijo));
+            if (idFuenteFijo)  p.push("idFuente="  + encodeURIComponent(idFuenteFijo));
+            document.getElementById('linkVolverDocumentos').href =
+                p.length ? ('documentos.html?' + p.join('&')) : 'documentos.html';
+        }
 
-                documentosDescartados.forEach(documento => {
-                    const filaTabla = document.createElement('tr');
-                    const valoresFila = [
-                        documento.id_documento,
-                        documento.titulo,
-                        documento.url,
-                        documento.pais,
-                        documento.fecha_consulta,
-                        documento.motivo_descarte
-                    ];
-                    valoresFila.forEach(valor => {
-                        const celda = document.createElement('td');
-                        celda.textContent = valor;
-                        filaTabla.appendChild(celda);
-                    });
-                    cuerpoTabla.appendChild(filaTabla);
-                });
-            } catch (error) {
-                console.error("Error al cargar documentos descartados:", error);
+        async function mostrarInfoFiltros() {
+            const info = document.getElementById('infoFiltros');
+            if (!idPersonaFijo && !idFuenteFijo) {
+                info.textContent = "Mostrando descartados de TODAS las personas y fuentes.";
+                return;
             }
+            let np = null, nf = null;
+            try {
+                if (idPersonaFijo) {
+                    const r = await fetch('listar_personas.php');
+                    if (r.ok) {
+                        const ps = await r.json();
+                        const p = ps.find(x => String(x.id_persona) === String(idPersonaFijo));
+                        if (p) np = "#" + p.id_persona + " - " +
+                            (p.nombre || "") + (p.apellido ? " " + p.apellido : "");
+                    }
+                }
+            } catch (e) {}
+            try {
+                if (idFuenteFijo) {
+                    const r = await fetch('listar_fuentes.php');
+                    if (r.ok) {
+                        const fs = await r.json();
+                        const f = fs.find(x => String(x.id_fuente) === String(idFuenteFijo));
+                        if (f) nf = "#" + f.id_fuente + " - " + f.nombre;
+                    }
+                }
+            } catch (e) {}
+            const partes = [];
+            if (np) partes.push("<strong>Persona:</strong> " + np);
+            if (nf) partes.push("<strong>Fuente:</strong> "  + nf);
+            info.innerHTML = partes.join(" &nbsp;|&nbsp; ");
+        }
+
+        async function cargarDescartados() {
+            const c = document.getElementById('cuerpoTablaDescartados');
+            c.textContent = "";
+            const p = [];
+            if (idPersonaFijo) p.push("idPersona=" + encodeURIComponent(idPersonaFijo));
+            if (idFuenteFijo)  p.push("idFuente="  + encodeURIComponent(idFuenteFijo));
+            let url = 'listar_descartados.php';
+            if (p.length) url += '?' + p.join('&');
+
+            try {
+                const res = await fetch(url);
+                if (!res.ok) { mostrarMensaje("No se pudieron cargar los descartados (" + res.status + ")."); return; }
+                const docs = await res.json();
+                if (!Array.isArray(docs) || docs.length === 0) {
+                    mostrarMensaje("No hay documentos descartados con estos filtros."); return;
+                }
+                docs.forEach(d => {
+                    const fila = document.createElement('tr');
+                    const np = (d.nombre_persona || "(sin persona)") +
+                        (d.apellido_persona ? " " + d.apellido_persona : "");
+                    const vals = [
+                        d.id_documento,
+                        d.nombre_hilo || "",
+                        np,
+                        d.nombre_fuente || "(sin fuente)",
+                        d.titulo,
+                        d.url,
+                        d.pais,
+                        d.fecha_consulta,
+                        d.motivo_descarte
+                    ];
+                    vals.forEach(v => {
+                        const td = document.createElement('td');
+                        if (v != null && typeof v === 'string' && v.startsWith('http')) td.classList.add('col-url');
+                        td.textContent = v;
+                        fila.appendChild(td);
+                    });
+                    c.appendChild(fila);
+                });
+            } catch (err) { mostrarMensaje("No se pudo conectar con el servidor."); }
+        }
+
+        function mostrarMensaje(msg) {
+            const f = document.createElement('tr');
+            f.className = 'fila-mensaje';
+            const td = document.createElement('td');
+            td.colSpan = 9; td.textContent = msg;
+            f.appendChild(td);
+            document.getElementById('cuerpoTablaDescartados').appendChild(f);
         }
     </script>
 </body>

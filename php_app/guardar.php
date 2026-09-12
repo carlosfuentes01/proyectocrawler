@@ -2,33 +2,56 @@
 require_once 'cabecera.php';
 require_once 'conexion.php';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $datos = json_decode(file_get_contents("php://input"), true);
+if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+    http_response_code(405);
+    echo json_encode(["error" => "Solo POST."]);
+    exit;
+}
 
-    if (empty($datos['nombre']) || empty($datos['pais'])) {
-        http_response_code(400);
-        echo json_encode(["error" => "nombre y pais son obligatorios."]);
-        exit;
-    }
+$datosRecibidos = json_decode(file_get_contents("php://input"), true);
 
-    try {
-        $stmt = $conexion->prepare(
-            "INSERT INTO persona (nombre, apellido, pais, ciudad, profesion, empresa, alias, palabra_clave)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
-        );
-        $stmt->execute([
-            $datos['nombre'],
-            $datos['apellido'] ?? null,
-            $datos['pais'],
-            $datos['ciudad'] ?? null,
-            $datos['profesion'] ?? null,
-            $datos['empresa'] ?? null,
-            $datos['alias'] ?? null,
-            $datos['palabra_clave'] ?? null
-        ]);
-        echo json_encode(["message" => "¡Persona guardada con éxito en MySQL!", "id" => $conexion->lastInsertId()]);
-    } catch (\PDOException $e) {
-        http_response_code(500);
-        echo json_encode(["error" => "Fallo al escribir en la BD: " . $e->getMessage()]);
-    }
+$nombre       = trim($datosRecibidos['nombre']        ?? '');
+$apellido     = trim($datosRecibidos['apellido']      ?? '');
+$pais         = trim($datosRecibidos['pais']          ?? 'Colombia');
+$ciudad       = trim($datosRecibidos['ciudad']        ?? '');
+$profesion    = trim($datosRecibidos['profesion']     ?? '');
+$empresa      = trim($datosRecibidos['empresa']       ?? '');
+$alias        = trim($datosRecibidos['alias']         ?? '');
+$palabraClave = trim($datosRecibidos['palabra_clave'] ?? '');
+
+if ($nombre === '') {
+    http_response_code(400);
+    echo json_encode(["error" => "El nombre es obligatorio."]);
+    exit;
+}
+
+try {
+    $sentenciaPreparada = $conexion->prepare(
+        "INSERT INTO persona (nombre, apellido, pais, ciudad, profesion, empresa, alias, palabra_clave)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    );
+    $sentenciaPreparada->execute([
+        $nombre,
+        $apellido     !== '' ? $apellido     : null,
+        $pais         !== '' ? $pais         : 'Colombia',
+        $ciudad       !== '' ? $ciudad       : null,
+        $profesion    !== '' ? $profesion    : null,
+        $empresa      !== '' ? $empresa      : null,
+        $alias        !== '' ? $alias        : null,
+        $palabraClave !== '' ? $palabraClave : null,
+    ]);
+
+    header('Content-Type: application/json');
+    echo json_encode([
+        "status"    => "OK",
+        "message"   => "Persona guardada con ID " . $conexion->lastInsertId(),
+        "idPersona" => (int) $conexion->lastInsertId()
+    ]);
+} catch (Throwable $excepcion) {
+    http_response_code(500);
+    header('Content-Type: application/json');
+    echo json_encode([
+        "error" => "Error al guardar persona",
+        "detalle" => $excepcion->getMessage()
+    ]);
 }

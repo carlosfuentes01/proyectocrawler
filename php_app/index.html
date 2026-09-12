@@ -2,48 +2,261 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>Registro de Persona</title>
+    <title>Panel del Crawler</title>
 </head>
 <body>
-    <h2>RF1: Registro de Persona a Consultar</h2>
-    <form id="formPersona">
-        <p><label>Nombre:</label><br><input type="text" id="nombre" required></p>
-        <p><label>Apellido:</label><br><input type="text" id="apellido"></p>
-        <p><label>País:</label><br><input type="text" id="pais" value="Colombia" required></p>
-        <p><label>Ciudad:</label><br><input type="text" id="ciudad"></p>
-        <p><label>Profesión / Cargo:</label><br><input type="text" id="profesion"></p>
-        <p><label>Empresa:</label><br><input type="text" id="empresa"></p>
-        <p><label>Alias:</label><br><input type="text" id="alias"></p>
-        <p><label>Palabra clave:</label><br><textarea id="palabra_clave" rows="4" cols="40"></textarea></p>
-        <p><button type="submit">Guardar Persona</button></p>
-    </form>
+    <h1>Panel del Crawler</h1>
+    <p>
+        <a href="documentos.html">Ir a Documentos del Crawler &rarr;</a>
+    </p>
+
+    <hr>
+
+    <!-- =================== PERSONAS =================== -->
+    <section>
+        <h2>RF1: Registro de Persona a Consultar</h2>
+
+        <form id="formPersona">
+            <p><label>Nombre:</label><br><input type="text" id="nombre" required></p>
+            <p><label>Apellido:</label><br><input type="text" id="apellido"></p>
+            <p><label>Pais:</label><br><input type="text" id="pais" value="Colombia" required></p>
+            <p><label>Ciudad:</label><br><input type="text" id="ciudad"></p>
+            <p><label>Profesion / Cargo:</label><br><input type="text" id="profesion"></p>
+            <p><label>Empresa:</label><br><input type="text" id="empresa"></p>
+            <p><label>Alias:</label><br><input type="text" id="alias"></p>
+            <p><label>Palabra clave:</label><br><textarea id="palabra_clave" rows="4" cols="40"></textarea></p>
+            <p><button type="submit">Guardar Persona</button></p>
+        </form>
+        <p id="mensajeEstadoPersona"></p>
+
+        <h3>Personas registradas</h3>
+        <table border="1" cellpadding="5" cellspacing="0">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>Apellido</th>
+                    <th>Pais</th>
+                    <th>Ciudad</th>
+                    <th>Profesion</th>
+                    <th>Empresa</th>
+                    <th>Alias</th>
+                    <th>Palabra clave</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpoTablaPersonas"></tbody>
+        </table>
+    </section>
+
+    <hr>
+
+    <!-- =================== FUENTES =================== -->
+    <section>
+        <h2>Registro de Fuente</h2>
+
+        <form id="formFuente">
+            <p><label>Nombre de la fuente:</label><br><input type="text" id="nombreFuente" required></p>
+            <p><label>URL inicial:</label><br><input type="text" id="urlBase" size="50" placeholder="https://..." required></p>
+            <p><label>Pais:</label><br><input type="text" id="paisFuente" value="Colombia"></p>
+            <p><label>Tipo (opcional):</label><br><input type="text" id="tipoFuente" placeholder="noticia, blog, etc."></p>
+            <p><button type="submit">Guardar Fuente</button></p>
+        </form>
+        <p id="mensajeEstadoFuente"></p>
+
+        <h3>Fuentes registradas</h3>
+        <table border="1" cellpadding="5" cellspacing="0">
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Nombre</th>
+                    <th>URL inicial</th>
+                    <th>Estado</th>
+                    <th>Pais</th>
+                    <th>Tipo</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpoTablaFuentes"></tbody>
+        </table>
+    </section>
 
     <script>
-        document.getElementById('formPersona').addEventListener('submit', async (e) => {
-            e.preventDefault();
+        document.addEventListener("DOMContentLoaded", () => {
+            cargarPersonas();
+            cargarFuentes();
+
+            document.getElementById('formPersona').addEventListener('submit', guardarPersona);
+            document.getElementById('formFuente').addEventListener('submit', guardarFuente);
+        });
+
+        // ---------- PERSONAS ----------
+        async function guardarPersona(evento) {
+            evento.preventDefault();
+
             const datos = {
-                nombre: document.getElementById('nombre').value,
-                apellido: document.getElementById('apellido').value,
-                pais: document.getElementById('pais').value,
-                ciudad: document.getElementById('ciudad').value,
-                profesion: document.getElementById('profesion').value,
-                empresa: document.getElementById('empresa').value,
-                alias: document.getElementById('alias').value,
+                nombre:        document.getElementById('nombre').value,
+                apellido:      document.getElementById('apellido').value,
+                pais:          document.getElementById('pais').value,
+                ciudad:        document.getElementById('ciudad').value,
+                profesion:     document.getElementById('profesion').value,
+                empresa:       document.getElementById('empresa').value,
+                alias:         document.getElementById('alias').value,
                 palabra_clave: document.getElementById('palabra_clave').value
             };
+
+            document.getElementById('mensajeEstadoPersona').textContent = "Guardando...";
+
             try {
-                const res = await fetch('/guardar.php', {
+                const res = await fetch('guardar.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(datos)
                 });
                 const resultado = await res.json();
-                alert(resultado.message || resultado.error);
-                if (res.ok) document.getElementById('formPersona').reset();
+
+                if (res.ok && resultado.status === 'OK') {
+                    document.getElementById('mensajeEstadoPersona').textContent =
+                        resultado.message || "Persona guardada.";
+                    document.getElementById('formPersona').reset();
+                    document.getElementById('pais').value = "Colombia";
+                    cargarPersonas();
+                } else {
+                    document.getElementById('mensajeEstadoPersona').textContent =
+                        resultado.error || resultado.detalle || "Error al guardar.";
+                }
             } catch (err) {
-                alert("Error al conectar con la API de personas.");
+                document.getElementById('mensajeEstadoPersona').textContent =
+                    "Error al conectar con la API de personas.";
             }
-        });
+        }
+
+        async function cargarPersonas() {
+            const cuerpoTabla = document.getElementById('cuerpoTablaPersonas');
+            cuerpoTabla.textContent = "";
+
+            try {
+                const res = await fetch('listar_personas.php');
+                if (!res.ok) {
+                    mostrarMensaje(cuerpoTabla, "No se pudieron cargar las personas (" + res.status + ").", 9);
+                    return;
+                }
+
+                const personas = await res.json();
+                if (!Array.isArray(personas) || personas.length === 0) {
+                    mostrarMensaje(cuerpoTabla, "Aun no hay personas registradas.", 9);
+                    return;
+                }
+
+                personas.forEach(persona => {
+                    const fila = document.createElement('tr');
+                    [
+                        persona.id_persona,
+                        persona.nombre,
+                        persona.apellido,
+                        persona.pais,
+                        persona.ciudad,
+                        persona.profesion,
+                        persona.empresa,
+                        persona.alias,
+                        persona.palabra_clave
+                    ].forEach(valor => {
+                        const celda = document.createElement('td');
+                        celda.textContent = valor;
+                        fila.appendChild(celda);
+                    });
+                    cuerpoTabla.appendChild(fila);
+                });
+            } catch (err) {
+                mostrarMensaje(cuerpoTabla, "No se pudo conectar con el servidor.", 9);
+            }
+        }
+
+        // ---------- FUENTES ----------
+        async function guardarFuente(evento) {
+            evento.preventDefault();
+
+            const datos = {
+                nombre:  document.getElementById('nombreFuente').value,
+                urlBase: document.getElementById('urlBase').value,
+                pais:    document.getElementById('paisFuente').value,
+                tipo:    document.getElementById('tipoFuente').value
+            };
+
+            document.getElementById('mensajeEstadoFuente').textContent = "Guardando...";
+
+            try {
+                const res = await fetch('crear_fuente.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(datos)
+                });
+                const resultado = await res.json();
+
+                if (res.ok && resultado.status === 'OK') {
+                    document.getElementById('mensajeEstadoFuente').textContent =
+                        "Fuente creada con ID " + resultado.idFuente;
+                    document.getElementById('formFuente').reset();
+                    document.getElementById('paisFuente').value = "Colombia";
+                    cargarFuentes();
+                } else {
+                    document.getElementById('mensajeEstadoFuente').textContent =
+                        resultado.error || resultado.detalle || "Error al guardar.";
+                }
+            } catch (err) {
+                document.getElementById('mensajeEstadoFuente').textContent =
+                    "Error al conectar con la API de fuentes.";
+            }
+        }
+
+        async function cargarFuentes() {
+            const cuerpoTabla = document.getElementById('cuerpoTablaFuentes');
+            cuerpoTabla.textContent = "";
+
+            try {
+                const res = await fetch('listar_fuentes.php');
+                if (!res.ok) {
+                    mostrarMensaje(cuerpoTabla, "No se pudieron cargar las fuentes (" + res.status + ").", 6);
+                    return;
+                }
+
+                const fuentes = await res.json();
+                if (!Array.isArray(fuentes) || fuentes.length === 0) {
+                    mostrarMensaje(cuerpoTabla, "Aun no hay fuentes registradas.", 6);
+                    return;
+                }
+
+                fuentes.forEach(fuente => {
+                    const fila = document.createElement('tr');
+                    [
+                        fuente.id_fuente,
+                        fuente.nombre,
+                        fuente.url_inicial,
+                        fuente.estado,
+                        fuente.pais,
+                        fuente.tipo
+                    ].forEach(valor => {
+                        const celda = document.createElement('td');
+                        celda.textContent = valor;
+                        fila.appendChild(celda);
+                    });
+                    cuerpoTabla.appendChild(fila);
+                });
+            } catch (err) {
+                mostrarMensaje(cuerpoTabla, "No se pudo conectar con el servidor.", 6);
+            }
+        }
+
+        // ---------- UTILIDAD ----------
+        function mostrarMensaje(cuerpoTabla, mensaje, numeroDeColumnas) {
+            const fila = document.createElement('tr');
+            const celda = document.createElement('td');
+            celda.colSpan = numeroDeColumnas;
+            celda.style.textAlign = "center";
+            celda.style.fontStyle = "italic";
+            celda.style.color = "#666";
+            celda.textContent = mensaje;
+            fila.appendChild(celda);
+            cuerpoTabla.appendChild(fila);
+        }
     </script>
 </body>
 </html>

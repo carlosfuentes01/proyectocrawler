@@ -3,105 +3,485 @@
 <head>
     <meta charset="UTF-8">
     <title>Documentos del Crawler</title>
+    <style>
+        body { font-family: sans-serif; margin: 20px; }
+        .tabla-wrapper {
+            width: 100%; overflow-x: auto; margin-bottom: 20px;
+            border: 1px solid #ddd; border-radius: 4px;
+        }
+        .tabla-wrapper table {
+            width: 100%; border-collapse: collapse; font-size: 13px;
+            table-layout: fixed;
+        }
+        .tabla-wrapper th, .tabla-wrapper td {
+            border: 1px solid #ddd; padding: 5px 8px;
+            text-align: left; vertical-align: top;
+        }
+        .tabla-wrapper td { max-width: 250px; overflow-x: auto; white-space: nowrap; }
+        .tabla-wrapper td.col-url { max-width: 400px; }
+        .tabla-wrapper th {
+            background-color: #f2f2f2; font-weight: bold;
+            position: sticky; top: 0;
+        }
+        .tabla-wrapper td::-webkit-scrollbar { height: 6px; }
+        .tabla-wrapper td::-webkit-scrollbar-thumb { background-color: #bbb; border-radius: 3px; }
+        .tabla-wrapper td::-webkit-scrollbar-track { background-color: #f1f1f1; }
+        .fila-mensaje td { text-align: center; font-style: italic; color: #666; overflow-x: visible; }
+    </style>
 </head>
 <body>
+    <p>
+        <a href="index.html">&larr; Volver al panel</a>
+        &nbsp;|&nbsp;
+        <a id="linkDescartados" href="descartados.html">Ver descartados &rarr;</a>
+    </p>
+
     <h2>Documentos encontrados (no descartados)</h2>
 
     <h3>Iniciar un rastreo</h3>
     <p>
-        <label>ID Fuente:</label> <input type="number" id="campoIdFuente">
-        <label>ID Persona:</label> <input type="number" id="campoIdPersona">
-        <label>URL semilla:</label> <input type="text" id="campoUrlSemilla" size="40">
-        <label>Numero de hilos:</label> <input type="number" id="campoNumeroDeHilos" value="2">
+        <label>Fuente:</label>
+        <select id="selectFuente"><option value="">-- Cargando fuentes... --</option></select>
+
+        <label>Persona:</label>
+        <select id="selectPersona"><option value="">-- Cargando personas... --</option></select>
+
+        <label>Hilos:</label>
+        <input type="number" id="campoNumeroDeHilos" value="2" min="1" max="8">
         <button id="botonIniciarCrawler">Iniciar Crawler</button>
     </p>
     <p id="mensajeEstadoCrawler"></p>
 
+    <h3>Progreso del crawler</h3>
+    <p>
+        <label><input type="checkbox" id="checkAutoActualizar" checked> Auto-actualizar cada 2s</label>
+        <button id="botonDetenerAuto">Detener</button>
+        <button id="botonRefrescarAhora">Refrescar ahora</button>
+    </p>
+    <p id="progresoCrawler">Sin datos aun.</p>
+
+    <h3>Filtros</h3>
+    <p>
+        <label>Filtrar por persona:</label>
+        <select id="selectFiltroPersona"><option value="">Todas las personas</option></select>
+
+        <label>Filtrar por fuente:</label>
+        <select id="selectFiltroFuente"><option value="">Todas las fuentes</option></select>
+
+        <button id="botonRecargarDocumentos">Recargar documentos</button>
+    </p>
+
+    <h3>Metricas segun los filtros actuales</h3>
+    <p>
+        <button id="botonRecargarMetricas">Recargar metricas</button>
+        <span style="font-style: italic; color:#666;">
+            (calculadas sobre los documentos que cumplen los filtros de arriba)
+        </span>
+    </p>
+    <div class="tabla-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>Total documentos</th><th>Procesadas</th><th>Descartadas</th>
+                    <th>Errores</th><th>Pendientes</th><th>En proceso</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpoTablaMetricas"></tbody>
+        </table>
+    </div>
+
     <h3>Documentos</h3>
-    <table border="1" cellpadding="5" cellspacing="0">
-        <thead>
-            <tr>
-                <th>ID</th>
-                <th>Titulo</th>
-                <th>URL</th>
-                <th>Pais</th>
-                <th>Fecha publicacion</th>
-                <th>Fecha consulta</th>
-                <th>Estado URL</th>
-                <th>Verificacion identidad</th>
-                <th>Clasificacion contextual</th>
-                <th>Fragmento contenido</th>
-            </tr>
-        </thead>
-        <tbody id="cuerpoTablaDocumentos"></tbody>
-    </table>
+    <div class="tabla-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>Hilo</th>
+                    <th>Persona</th>
+                    <th>Fuente</th>
+                    <th>Titulo</th>
+                    <th>URL</th>
+                    <th>Pais</th>
+                    <th>Fecha publicacion</th>
+                    <th>Fecha consulta</th>
+                    <th>Estado URL</th>
+                    <th>Verificacion identidad</th>
+                    <th>Clasificacion contextual</th>
+                </tr>
+            </thead>
+            <tbody id="cuerpoTablaDocumentos"></tbody>
+        </table>
+    </div>
 
     <script>
+        const CLAVE_PERSONA_RECORDADA = "crawler_ultima_persona";
+        let temporizadorAuto = null;
+        let intentosFallidosConsecutivos = 0;
+        const MAX_INTENTOS_FALLIDOS = 5;
+
+        const filasRenderizadas = new Map();
+        let celdasMetricas = null;
+
         document.addEventListener("DOMContentLoaded", () => {
+            cargarFuentes();
+            cargarPersonas();
             cargarDocumentos();
+            cargarMetricas();
+            actualizarProgreso();
+            actualizarLinkDescartados();
+
             document.getElementById('botonIniciarCrawler').addEventListener('click', iniciarCrawler);
+            document.getElementById('botonRecargarDocumentos').addEventListener('click', () => {
+                limpiarCacheFilas();
+                cargarDocumentos();
+                cargarMetricas();
+                actualizarProgreso();
+            });
+            document.getElementById('botonRecargarMetricas').addEventListener('click', cargarMetricas);
+            document.getElementById('selectPersona').addEventListener('change', recordarPersonaSeleccionada);
+
+            document.getElementById('selectFiltroPersona').addEventListener('change', () => {
+                limpiarCacheFilas(); cargarDocumentos(); cargarMetricas();
+                actualizarProgreso(); actualizarLinkDescartados();
+            });
+            document.getElementById('selectFiltroFuente').addEventListener('change', () => {
+                limpiarCacheFilas(); cargarDocumentos(); cargarMetricas();
+                actualizarProgreso(); actualizarLinkDescartados();
+            });
+
+            document.getElementById('botonRefrescarAhora').addEventListener('click', () => {
+                actualizarProgreso(); cargarDocumentos(); cargarMetricas();
+            });
+            document.getElementById('botonDetenerAuto').addEventListener('click', () => {
+                detenerAuto();
+                document.getElementById('checkAutoActualizar').checked = false;
+            });
+            document.getElementById('checkAutoActualizar').addEventListener('change', (e) => {
+                if (e.target.checked) arrancarAuto();
+                else detenerAuto();
+            });
+
+            arrancarAuto();
         });
 
-        async function iniciarCrawler() {
-            const idFuente = document.getElementById('campoIdFuente').value;
-            const idPersona = document.getElementById('campoIdPersona').value;
-            const urlSemilla = document.getElementById('campoUrlSemilla').value;
-            const numeroDeHilos = document.getElementById('campoNumeroDeHilos').value;
+        function actualizarLinkDescartados() {
+            const idP = document.getElementById('selectFiltroPersona').value;
+            const idF = document.getElementById('selectFiltroFuente').value;
+            const p = [];
+            if (idP) p.push("idPersona=" + encodeURIComponent(idP));
+            if (idF) p.push("idFuente="  + encodeURIComponent(idF));
+            document.getElementById('linkDescartados').href =
+                p.length ? ('descartados.html?' + p.join('&')) : 'descartados.html';
+        }
 
+        function limpiarCacheFilas() {
+            filasRenderizadas.clear();
+            document.getElementById('cuerpoTablaDocumentos').textContent = "";
+            celdasMetricas = null;
+            document.getElementById('cuerpoTablaMetricas').textContent = "";
+        }
+
+        function arrancarAuto() {
+            if (temporizadorAuto) return;
+            temporizadorAuto = setInterval(() => {
+                actualizarProgreso();
+                cargarDocumentos();
+                cargarMetricas();
+            }, 2000);
+        }
+
+        function detenerAuto() {
+            if (temporizadorAuto) {
+                clearInterval(temporizadorAuto);
+                temporizadorAuto = null;
+            }
+        }
+
+        async function actualizarProgreso() {
+            const idP = document.getElementById('selectFiltroPersona').value;
+            const idF = document.getElementById('selectFiltroFuente').value;
+            const p = [];
+            if (idP) p.push("idPersona=" + encodeURIComponent(idP));
+            if (idF) p.push("idFuente="  + encodeURIComponent(idF));
+            let url = 'progreso_crawler.php';
+            if (p.length) url += '?' + p.join('&');
+
+            try {
+                const res = await fetch(url);
+                if (!res.ok) {
+                    intentosFallidosConsecutivos++;
+                    document.getElementById('progresoCrawler').textContent =
+                        "No se pudo consultar el progreso (" + res.status + ").";
+                    if (intentosFallidosConsecutivos >= MAX_INTENTOS_FALLIDOS) {
+                        detenerAuto();
+                        document.getElementById('checkAutoActualizar').checked = false;
+                    }
+                    return;
+                }
+                intentosFallidosConsecutivos = 0;
+                const pr = await res.json();
+                const estado = pr.enCurso ? "EN CURSO" : "DETENIDO / TERMINADO";
+                document.getElementById('progresoCrawler').innerHTML =
+                    "<strong>Estado:</strong> " + estado +
+                    " &nbsp;|&nbsp; <strong>Total:</strong> " + pr.total +
+                    " &nbsp;|&nbsp; <strong>Pendientes:</strong> " + pr.pendientes +
+                    " &nbsp;|&nbsp; <strong>En proceso:</strong> " + pr.enProceso +
+                    " &nbsp;|&nbsp; <strong>Procesadas:</strong> " + pr.procesadas +
+                    " &nbsp;|&nbsp; <strong>Descartadas:</strong> " + pr.descartadas +
+                    " &nbsp;|&nbsp; <strong>Errores:</strong> " + pr.errores;
+
+                if (!pr.enCurso) {
+                    detenerAuto();
+                    document.getElementById('checkAutoActualizar').checked = false;
+                }
+            } catch (err) { intentosFallidosConsecutivos++; }
+        }
+
+        function recordarPersonaSeleccionada() {
+            const v = document.getElementById('selectPersona').value;
+            if (v) localStorage.setItem(CLAVE_PERSONA_RECORDADA, v);
+        }
+
+        function restaurarPersonaSeleccionada() {
+            const g = localStorage.getItem(CLAVE_PERSONA_RECORDADA);
+            if (g) document.getElementById('selectPersona').value = g;
+        }
+
+        async function cargarFuentes() {
+            const s = document.getElementById('selectFuente');
+            const sf = document.getElementById('selectFiltroFuente');
+            s.innerHTML = '<option value="">-- Cargando --</option>';
+            try {
+                const res = await fetch('listar_fuentes.php');
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const fuentes = await res.json();
+                s.innerHTML = '<option value="">-- Selecciona fuente --</option>';
+                sf.innerHTML = '<option value="">Todas las fuentes</option>';
+                if (!Array.isArray(fuentes) || fuentes.length === 0) {
+                    s.innerHTML = '<option value="">No hay fuentes registradas</option>';
+                    return;
+                }
+                fuentes.forEach(f => {
+                    const etiqueta = "#" + f.id_fuente + " - " + f.nombre;
+                    const o1 = document.createElement('option');
+                    o1.value = f.id_fuente;
+                    o1.textContent = etiqueta + " (" + f.url_inicial + ")";
+                    s.appendChild(o1);
+                    const o2 = document.createElement('option');
+                    o2.value = f.id_fuente;
+                    o2.textContent = etiqueta;
+                    sf.appendChild(o2);
+                });
+            } catch (err) { s.innerHTML = '<option value="">Error cargando fuentes</option>'; }
+        }
+
+        async function cargarPersonas() {
+            const s = document.getElementById('selectPersona');
+            const sf = document.getElementById('selectFiltroPersona');
+            s.innerHTML = '<option value="">-- Cargando --</option>';
+            try {
+                const res = await fetch('listar_personas.php');
+                if (!res.ok) throw new Error("HTTP " + res.status);
+                const personas = await res.json();
+                s.innerHTML = '<option value="">-- Selecciona persona --</option>';
+                sf.innerHTML = '<option value="">Todas las personas</option>';
+                if (!Array.isArray(personas) || personas.length === 0) {
+                    s.innerHTML = '<option value="">No hay personas registradas</option>';
+                    return;
+                }
+                personas.forEach(p => {
+                    const etiqueta = "#" + p.id_persona + " - " +
+                        (p.nombre || "") + (p.apellido ? " " + p.apellido : "");
+                    const o1 = document.createElement('option');
+                    o1.value = p.id_persona; o1.textContent = etiqueta;
+                    s.appendChild(o1);
+                    const o2 = document.createElement('option');
+                    o2.value = p.id_persona; o2.textContent = etiqueta;
+                    sf.appendChild(o2);
+                });
+                restaurarPersonaSeleccionada();
+            } catch (err) { s.innerHTML = '<option value="">Error cargando personas</option>'; }
+        }
+
+        async function iniciarCrawler() {
+            const idF = document.getElementById('selectFuente').value;
+            const idP = document.getElementById('selectPersona').value;
+            const nH = document.getElementById('campoNumeroDeHilos').value;
+
+            if (!idF || !idP) {
+                document.getElementById('mensajeEstadoCrawler').textContent = "Selecciona fuente y persona.";
+                return;
+            }
+
+            recordarPersonaSeleccionada();
             document.getElementById('mensajeEstadoCrawler').textContent = "Iniciando crawler...";
 
             try {
-                const respuesta = await fetch('iniciar_crawler.php', {
+                const res = await fetch('iniciar_crawler.php', {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({
-                        idFuente: parseInt(idFuente, 10),
-                        idPersona: parseInt(idPersona, 10),
-                        urlSemilla: urlSemilla,
-                        numeroHilos: parseInt(numeroDeHilos, 10)
+                        idFuente: parseInt(idF, 10),
+                        idPersona: parseInt(idP, 10),
+                        numeroHilos: parseInt(nH, 10)
                     })
                 });
-                const datos = await respuesta.json();
+                const datos = await res.json();
                 document.getElementById('mensajeEstadoCrawler').textContent =
                     datos.status || datos.error || "Sin respuesta";
-            } catch (error) {
+
+                document.getElementById('selectFiltroPersona').value = idP;
+                document.getElementById('selectFiltroFuente').value  = idF;
+
+                limpiarCacheFilas();
+                actualizarProgreso();
+                cargarDocumentos();
+                cargarMetricas();
+                actualizarLinkDescartados();
+
+                intentosFallidosConsecutivos = 0;
+                document.getElementById('checkAutoActualizar').checked = true;
+                arrancarAuto();
+            } catch (err) {
                 document.getElementById('mensajeEstadoCrawler').textContent = "Error al conectar con PHP";
             }
         }
 
-        async function cargarDocumentos() {
-            try {
-                const respuesta = await fetch('listar_documentos_relacionados.php');
-                const documentos = await respuesta.json();
-                const cuerpoTabla = document.getElementById('cuerpoTablaDocumentos');
-                cuerpoTabla.textContent = "";
+        function construirUrlConFiltros(base) {
+            const idP = document.getElementById('selectFiltroPersona').value;
+            const idF = document.getElementById('selectFiltroFuente').value;
+            const p = [];
+            if (idP) p.push("idPersona=" + encodeURIComponent(idP));
+            if (idF) p.push("idFuente="  + encodeURIComponent(idF));
+            return p.length ? (base + '?' + p.join('&')) : base;
+        }
 
+        async function cargarDocumentos() {
+            const url = construirUrlConFiltros('listar_documentos.php');
+            try {
+                const res = await fetch(url);
+                if (!res.ok) return;
+                let documentos = await res.json();
                 if (!Array.isArray(documentos)) return;
 
-                documentos.forEach(documento => {
-                    const filaTabla = document.createElement('tr');
-                    const valoresFila = [
-                        documento.id_documento,
-                        documento.titulo,
-                        documento.url,
-                        documento.pais,
-                        documento.fecha_publicacion,
-                        documento.fecha_consulta,
-                        documento.estado_url,
-                        documento.verificacion_identidad,
-                        documento.clasificacion_contextual,
-                        documento.fragmento_contenido
-                    ];
-                    valoresFila.forEach(valor => {
-                        const celda = document.createElement('td');
-                        celda.textContent = valor;
-                        filaTabla.appendChild(celda);
+                // Filtro defensivo: excluir DESCARTADAS antes de pintar
+                documentos = documentos.filter(d => d.estado_url !== 'DESCARTADA');
+
+                if (documentos.length === 0) {
+                    if (filasRenderizadas.size === 0) mostrarMensajeVacio("No hay documentos con estos filtros.");
+                    else {
+                        // Hay filas en pantalla pero ya ninguna es valida: limpiar
+                        document.getElementById('cuerpoTablaDocumentos').textContent = "";
+                        filasRenderizadas.clear();
+                        mostrarMensajeVacio("No hay documentos con estos filtros.");
+                    }
+                    return;
+                }
+                const m = document.querySelector('#cuerpoTablaDocumentos .fila-mensaje');
+                if (m) m.remove();
+                actualizarTablaConDiff(documentos);
+            } catch (err) { console.warn(err); }
+        }
+
+        async function cargarMetricas() {
+            const url = construirUrlConFiltros('metricas_por_filtro.php');
+            try {
+                const res = await fetch(url);
+                if (!res.ok) return;
+                const m = await res.json();
+                const cuerpo = document.getElementById('cuerpoTablaMetricas');
+                if (!celdasMetricas) {
+                    cuerpo.textContent = "";
+                    const fila = document.createElement('tr');
+                    const celdas = [];
+                    for (let i = 0; i < 6; i++) {
+                        const c = document.createElement('td');
+                        fila.appendChild(c); celdas.push(c);
+                    }
+                    cuerpo.appendChild(fila);
+                    celdasMetricas = celdas;
+                }
+                [m.totalDocumentos, m.procesadas, m.descartadas, m.errores, m.pendientes, m.enProceso]
+                    .forEach((v, i) => {
+                        const txt = v != null ? String(v) : "";
+                        if (celdasMetricas[i].textContent !== txt) celdasMetricas[i].textContent = txt;
                     });
-                    cuerpoTabla.appendChild(filaTabla);
-                });
-            } catch (error) {
-                console.error("Error al cargar documentos:", error);
-            }
+            } catch (err) { console.warn(err); }
+        }
+
+        function mostrarMensajeVacio(mensaje) {
+            const c = document.getElementById('cuerpoTablaDocumentos');
+            c.textContent = ""; filasRenderizadas.clear();
+            const f = document.createElement('tr');
+            f.className = 'fila-mensaje';
+            const td = document.createElement('td');
+            td.colSpan = 12; td.textContent = mensaje;
+            f.appendChild(td); c.appendChild(f);
+        }
+
+        function actualizarTablaConDiff(documentos) {
+            const cuerpo = document.getElementById('cuerpoTablaDocumentos');
+
+            // 1. Set de ids que vinieron en la respuesta (solo las que no son DESCARTADAS)
+            const idsEnRespuesta = new Set();
+            documentos.forEach(d => {
+                if (d.estado_url !== 'DESCARTADA') {
+                    idsEnRespuesta.add(d.id_documento);
+                }
+            });
+
+            // 2. Eliminar del DOM las filas que ya no estan en la respuesta
+            //    (se descartaron, o dejaron de cumplir el filtro)
+            filasRenderizadas.forEach((entrada, id) => {
+                if (!idsEnRespuesta.has(id)) {
+                    if (entrada.tr.parentNode) {
+                        entrada.tr.parentNode.removeChild(entrada.tr);
+                    }
+                    filasRenderizadas.delete(id);
+                }
+            });
+
+            // 3. Agregar o actualizar las filas que si estan
+            const ordenados = documentos.slice().reverse();
+            ordenados.forEach(doc => {
+                if (doc.estado_url === 'DESCARTADA') return;  // defensa extra
+
+                const id = doc.id_documento;
+                const persona = (doc.nombre_persona || "(sin persona)") +
+                    (doc.apellido_persona ? " " + doc.apellido_persona : "");
+                const valores = [
+                    id,
+                    doc.nombre_hilo || "",
+                    persona,
+                    doc.nombre_fuente || "(sin fuente)",
+                    doc.titulo,
+                    doc.url,
+                    doc.pais,
+                    doc.fecha_publicacion,
+                    doc.fecha_consulta,
+                    doc.estado_url,
+                    doc.verificacion_identidad,
+                    doc.clasificacion_contextual
+                ];
+                const entrada = filasRenderizadas.get(id);
+                if (!entrada) {
+                    const fila = document.createElement('tr');
+                    const celdas = [];
+                    valores.forEach(v => {
+                        const c = document.createElement('td');
+                        if (v != null && typeof v === 'string' && v.startsWith('http')) c.classList.add('col-url');
+                        c.textContent = v != null ? v : "";
+                        fila.appendChild(c); celdas.push(c);
+                    });
+                    cuerpo.appendChild(fila);
+                    filasRenderizadas.set(id, { tr: fila, celdas: celdas });
+                } else {
+                    valores.forEach((v, i) => {
+                        const txt = v != null ? String(v) : "";
+                        if (entrada.celdas[i].textContent !== txt) entrada.celdas[i].textContent = txt;
+                    });
+                }
+            });
         }
     </script>
 </body>

@@ -23,7 +23,6 @@ public class testeo {
         server.createContext("/procesar", testeo::handleProcesar);
         server.createContext("/sumar", testeo::handleSumar);
 
-        // Nuevos endpoints del crawler
         server.createContext("/crawler/iniciar", testeo::handleCrawlerIniciar);
         server.createContext("/crawler/metricas", testeo::handleCrawlerMetricas);
 
@@ -32,7 +31,6 @@ public class testeo {
         System.out.println("Servidor Java escuchando en 8083 (con testeo + crawler)");
     }
 
-    // ---------- /crawler/iniciar?idFuente=1&idPersona=1&urlSemilla=...&numeroHilos=4 ----------
     static void handleCrawlerIniciar(HttpExchange exchange) {
         try {
             exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
@@ -51,7 +49,6 @@ public class testeo {
 
             responderJson(exchange, "{\"status\":\"CRAWLING_INICIADO\",\"numeroHilos\":" + numeroDeHilos + "}");
 
-            // Todo el crawling corre en segundo plano, no bloquea la respuesta HTTP
             new Thread(() -> ejecutarCrawlingCompleto(idFuente, idPersona, urlSemilla, numeroDeHilos)).start();
 
         } catch (Exception excepcion) {
@@ -66,14 +63,17 @@ public class testeo {
             return;
         }
 
-        GestorCrawler gestorCrawler = new GestorCrawler();
+        GestorCrawler gestorCrawler = new GestorCrawler(idFuente, idPersona);
         gestorCrawler.agregarUrlSiEsNueva(urlSemilla, idFuente, idPersona);
 
         long tiempoInicio = System.currentTimeMillis();
 
+        System.out.println("Iniciando crawling con " + numeroDeHilos + " hilos...");
+
         Thread[] hilosDelCrawler = new Thread[numeroDeHilos];
         for (int indice = 0; indice < numeroDeHilos; indice++) {
             hilosDelCrawler[indice] = new Thread(new CrawlerWorker(gestorCrawler, persona));
+            hilosDelCrawler[indice].setName("worker-" + (indice + 1));
             hilosDelCrawler[indice].start();
         }
 
@@ -93,7 +93,6 @@ public class testeo {
                 + duracionTotalEnMilisegundos + " ms con " + numeroDeHilos + " hilos.");
     }
 
-    // ---------- /crawler/metricas ----------
     static void handleCrawlerMetricas(HttpExchange exchange) {
         try {
             exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
@@ -124,7 +123,6 @@ public class testeo {
         }
     }
 
-    // ---------- /procesar : flujo con BD (tabla test) ----------
     static void handleProcesar(HttpExchange exchange) {
         try {
             exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
@@ -144,7 +142,6 @@ public class testeo {
         }
     }
 
-    // ---------- /sumar : version simplificada, sin BD ----------
     static void handleSumar(HttpExchange exchange) {
         try {
             exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
